@@ -1,0 +1,5 @@
+.env
+node_modules
+audit.json
+server.backup*.js
+server.bak
