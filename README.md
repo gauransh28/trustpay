@@ -70,9 +70,7 @@ Open http://localhost:3000
 Note: PayPal blocks sending invoices to customers inside India, so use a US business app and a US personal account for testing.
 
 ## Demo video
-
-Add the YouTube link here.
-
+https://youtu.be/hlJj0yLTXeM
 ## License
 
 MIT
