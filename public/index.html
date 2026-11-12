@@ -1,0 +1,101 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TrustPay: AI invoicing you can trust</title>
+<style>
+:root{--ink:#14213d;--mut:#5b6b85;--line:#dfe6f1;--bg:#f3f6fb;--card:#fff;--blue:#003087;--sky:#009cde;--ok:#1b8a5a;--warn:#b86e00;--bad:#c0392b}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.5}
+header{background:var(--blue);color:#fff;padding:28px 20px 56px}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+header .wrap{padding:0}
+h1{margin:0;font-size:30px;letter-spacing:-.5px}
+header p{margin:6px 0 0;color:#cfe0ff;max-width:520px}
+main{margin-top:-36px;padding-bottom:40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 10px}
+.ask{display:flex;gap:10px}
+input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+input:focus,button:focus-visible{outline:3px solid #9fd6f2;outline-offset:1px}
+button{font:inherit;font-weight:600;padding:10px 16px;border:0;border-radius:8px;background:var(--sky);color:#fff;cursor:pointer;white-space:nowrap}
+button:hover{background:#0085bd}
+button.alt{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+button.go{background:var(--blue);width:100%;margin-top:10px;padding:13px}
+.grid{display:grid;grid-template-columns:1fr 300px;gap:16px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.ask{flex-direction:column}}
+label.f{display:block;font-size:13px;color:var(--mut);margin-top:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gauge{text-align:center}
+.gauge svg{width:150px;height:150px;transform:rotate(-90deg)}
+.gauge .num{font-size:34px;font-weight:700;margin-top:-100px;height:100px;line-height:100px}
+.gauge small{color:var(--mut)}
+.chk{list-style:none;padding:0;margin:14px 0 0;text-align:left;font-size:14px}
+.chk li{padding:5px 0;border-top:1px solid var(--line)}
+.ok{color:var(--ok)}.no{color:var(--bad)}
+.flag{background:#fff6e5;border-left:4px solid var(--warn);padding:8px 10px;margin:8px 0;border-radius:4px;font-size:14px}
+.badge{font-size:12px;background:#e8f1ff;color:var(--blue);padding:2px 8px;border-radius:10px;font-weight:600}
+.badge.s{background:#fff6e5;color:var(--warn)}.badge.p{background:#e3f6ec;color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600}
+.msg{margin-top:10px;font-size:14px}
+.empty{color:var(--mut);font-size:14px}
+</style></head><body>
+<header><div class="wrap"><h1>TrustPay</h1>
+<p>Tell the AI what to invoice. Nothing is sent until you review the draft and approve it.</p></div></header>
+<main class="wrap">
+<div class="card"><h2>New invoice request</h2>
+<div class="ask"><input id="req" aria-label="Invoice request" value="Invoice Priya $120 for wedding bouquets, due Friday">
+<button onclick="parse()">Draft invoice</button></div></div>
+
+<div id="trust" style="display:none" class="grid">
+ <div class="card"><h2>Review the draft</h2><div id="flags"></div>
+  <label class="f">Customer name<input id="cu"></label>
+  <label class="f">Customer email (sandbox personal account)<input id="em" type="email" placeholder="buyer@personal.example.com"></label>
+  <div class="row"><label class="f">Amount (USD)<input id="am" type="number" step="0.01"></label>
+  <label class="f">Due date<input id="du" type="date"></label></div>
+  <label class="f">What it's for<input id="it"></label>
+  <div id="big"></div>
+  <button class="go" onclick="approve()">Approve and send via PayPal</button><div id="out" class="msg"></div></div>
+ <div class="card gauge"><h2>Trust Meter</h2>
+  <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="#e3e8f0" stroke-width="11"/>
+  <circle id="ring" cx="60" cy="60" r="50" fill="none" stroke="#1b8a5a" stroke-width="11" stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314" style="transition:stroke-dashoffset .8s ease"/></svg>
+  <div class="num" id="pct">0%</div><small>AI confidence</small>
+  <div style="margin-top:8px"><span class="badge" id="src"></span></div>
+  <ul class="chk" id="chk"></ul></div>
+</div>
+
+<div class="card"><h2>Unpaid invoices</h2><button class="alt" onclick="unpaid()">Who hasn't paid me yet?</button><div id="inv" class="msg"></div></div>
+<div class="card"><h2>Audit log</h2><button class="alt" onclick="loadLog()">Refresh</button><div id="log" class="msg"></div></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let D={};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function parse(){
+ try{
+  const r=await fetch('/api/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:$('req').value})});
+  D=await r.json();
+ }catch(e){alert('Could not reach the server. Is it running?');return}
+ const c=Math.round((D.confidence||0)*100);
+ $('trust').style.display='grid';
+ $('flags').innerHTML=D.flags.map(f=>`<div class="flag">${esc(f)}</div>`).join('');
+ $('cu').value=D.customer||'';$('am').value=D.amount||'';$('it').value=D.item||'';$('du').value=D.due_date||'';
+ $('big').innerHTML=D.amount>D.limit?'<label class="f"><input type="checkbox" id="cf" style="width:auto"> I confirm this larger amount</label>':'';
+ $('src').textContent='Understood by: '+D.source;
+ $('pct').textContent=c+'%';
+ $('ring').style.stroke=c>=85?'#1b8a5a':c>=60?'#b86e00':'#c0392b';
+ $('ring').style.strokeDashoffset=314*(1-c/100);
+ const k=[[D.customer,'Customer name found'],[D.amount>0,'Amount found'],[D.item,'Item described'],[D.due_date,'Due date found'],[D.amount<=D.limit,'Within your $'+D.limit+' limit']];
+ $('chk').innerHTML=k.map(([v,t])=>`<li><span class="${v?'ok':'no'}">${v?'✔':'✖'}</span> ${esc(t)}</li>`).join('');
+ loadLog();}
+async function approve(){
+ const body={customer:$('cu').value,email:$('em').value,amount:+$('am').value,item:$('it').value,due_date:$('du').value,confirmed:$('cf')?.checked};
+ const d=await (await fetch('/api/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+ $('out').innerHTML=d.ok?`<span class="ok">✔ Invoice ${esc(d.invoice)} sent through PayPal.</span> <a href="${esc(d.link)}" target="_blank" rel="noopener">View API link</a>`:`<span class="no">${esc(d.error)}</span>`;loadLog();}
+async function unpaid(){
+ const d=await (await fetch('/api/invoices')).json();
+ if(d.error){$('inv').innerHTML=`<span class="no">${esc(d.error)}</span>`;return}
+ const u=d.filter(i=>i.status!=='PAID');
+ $('inv').innerHTML=u.length?`<p>${u.length} unpaid of ${d.length} invoices.</p><table><tr><th>#</th><th>To</th><th>USD</th><th>Status</th></tr>${u.map(i=>`<tr><td>${esc(i.number)}</td><td>${esc(i.to)}</td><td>${esc(i.amount)}</td><td><span class="badge s">${esc(i.status)}</span></td></tr>`).join('')}</table>`:'<p class="empty">Everyone has paid.</p>';}
+async function loadLog(){
+ const d=await (await fetch('/api/log')).json();
+ $('log').innerHTML=d.length?`<table>${d.slice(0,8).map(e=>`<tr><td>${new Date(e.time).toLocaleTimeString()}</td><td><span class="badge ${e.event==='approved_and_sent'?'p':e.event==='error'?'s':''}">${esc(e.event)}</span></td><td>${esc(e.customer||e.request||e.message||'')}</td></tr>`).join('')}</table>`:'<p class="empty">No activity yet. Draft an invoice to start the log.</p>';}
+loadLog();
+</script></body></html>
